@@ -116,6 +116,26 @@ client.on("messageCreate", async (message) => {
   }
 
   // =========================
+  // MENTION → AFFICHE LE PREFIX
+  // =========================
+  const isMention =
+    message.content === `<@${client.user!.id}>` ||
+    message.content === `<@!${client.user!.id}>`;
+
+  if (isMention) {
+    const mentionEmbed = new EmbedBuilder()
+      .setColor(0x5dade2)
+      .setTitle("👋 Salut !")
+      .setDescription(
+        `Mon préfixe sur ce serveur est **\`${PREFIX}\`**\n\nTape **\`${PREFIX}help\`** pour voir toutes mes commandes.`
+      )
+      .setThumbnail(client.user!.displayAvatarURL({ size: 256 }))
+      .setFooter({ text: `Demandé par ${message.author.tag}` })
+      .setTimestamp();
+    return void message.reply({ embeds: [mentionEmbed] });
+  }
+
+  // =========================
   // PREFIX CHECK
   // =========================
   if (!message.content.startsWith(PREFIX)) return;
