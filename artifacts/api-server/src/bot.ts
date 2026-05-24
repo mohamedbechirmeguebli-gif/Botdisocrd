@@ -3,6 +3,7 @@ import {
   GatewayIntentBits,
   PermissionsBitField,
   ChannelType,
+  EmbedBuilder,
   type TextChannel,
   type GuildMember,
   type Role,
