@@ -347,6 +347,50 @@ client.on("messageCreate", async (message) => {
   }
 
   // =========================
+  // USERINFO
+  // =========================
+  if (cmd === "userinfo") {
+    const target = message.mentions.members?.first() ?? member;
+    const user = target.user;
+
+    const roles = target.roles.cache
+      .filter((r) => r.id !== message.guild!.id)
+      .sort((a, b) => b.position - a.position)
+      .map((r) => `<@&${r.id}>`)
+      .slice(0, 10)
+      .join(" ") || "Aucun";
+
+    const joinedAt = target.joinedAt
+      ? `<t:${Math.floor(target.joinedAt.getTime() / 1000)}:D>`
+      : "Inconnu";
+    const createdAt = `<t:${Math.floor(user.createdAt.getTime() / 1000)}:D>`;
+
+    const userinfoEmbed = new EmbedBuilder()
+      .setColor(0x5dade2)
+      .setTitle(`👤 Informations — ${user.tag}`)
+      .setThumbnail(user.displayAvatarURL({ size: 256 }))
+      .addFields(
+        { name: "🪪 Identifiant", value: `\`${user.id}\``, inline: true },
+        { name: "📛 Pseudo serveur", value: target.displayName, inline: true },
+        { name: "📅 Compte créé le", value: createdAt, inline: true },
+        { name: "📥 A rejoint le", value: joinedAt, inline: true },
+        {
+          name: "🤖 Bot",
+          value: user.bot ? "Oui" : "Non",
+          inline: true,
+        },
+        {
+          name: `🎭 Rôles (${target.roles.cache.size - 1})`,
+          value: roles,
+        }
+      )
+      .setFooter({ text: `Demandé par ${message.author.tag}` })
+      .setTimestamp();
+
+    return void message.channel.send({ embeds: [userinfoEmbed] });
+  }
+
+  // =========================
   // JAIL / UNJAIL
   // =========================
   if (cmd === "jail") {
