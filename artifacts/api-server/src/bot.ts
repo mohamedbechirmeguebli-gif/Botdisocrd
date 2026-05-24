@@ -155,17 +155,35 @@ client.on("messageCreate", async (message) => {
       .addFields(
         {
           name: "🔨 Modération",
-          value:
-            "`+warn` `+unwarn` `+mute` `+unmute` `+jail` `+unjail`\n`+ban` `+unban` `+addrole` `+removerole`\n`+lockdown` `+lockdown off` `+unlock`",
+          value: [
+            "`+warn @membre` — Avertir un membre",
+            "`+unwarn @membre` — Retirer les warns d'un membre",
+            "`+mute @membre` — Rendre muet un membre",
+            "`+unmute @membre` — Retirer le mute d'un membre",
+            "`+ban @membre` — Bannir un membre",
+            "`+unban <id>` — Débannir un membre par ID",
+            "`+jail @membre` — Mettre un membre en jail",
+            "`+unjail @membre` — Sortir un membre de jail",
+            "`+addrole @membre @role` — Donner un rôle",
+            "`+removerole @membre @role` — Retirer un rôle",
+            "`+lockdown` — 🔒 Verrouiller tous les salons",
+            "`+lockdown off` — 🔓 Déverrouiller tous les salons",
+          ].join("\n"),
         },
         {
           name: "🧰 Utilitaires",
-          value:
-            "`+ping` `+afk` `+clears <nombre>` `+dm @membre message`\n`+userinfo [@membre]` `+serverinfo`",
+          value: [
+            "`+ping` — Vérifier si le bot répond",
+            "`+afk [raison]` — Se mettre en AFK",
+            "`+clears <nombre>` — Supprimer X messages (max 100)",
+            "`+dm @membre message` — Envoyer un DM à un membre",
+            "`+userinfo [@membre]` — Voir les infos d'un membre",
+            "`+serverinfo` — Voir les infos du serveur",
+          ].join("\n"),
         },
         {
           name: "🛡 Automatique",
-          value: "Anti-spam • Anti-raid",
+          value: "Anti-spam actif — mute automatique après 6 messages en 4 secondes",
         }
       )
       .setFooter({ text: `Demandé par ${message.author.tag}` })
