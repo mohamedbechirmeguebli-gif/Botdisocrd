@@ -52,6 +52,30 @@ client.once("clientReady", () => {
 });
 
 // =========================
+// HELPER LOG MOD
+// =========================
+function modLog(
+  guild: import("discord.js").Guild,
+  color: number,
+  title: string,
+  fields: { name: string; value: string; inline?: boolean }[],
+  moderator: import("discord.js").User
+) {
+  const ch = guild.channels.cache.get(LOG_MOD) as TextChannel | undefined;
+  if (!ch) return;
+  ch.send({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(color)
+        .setTitle(title)
+        .addFields(fields)
+        .setFooter({ text: `Par ${moderator.tag}` })
+        .setTimestamp(),
+    ],
+  }).catch(() => {});
+}
+
+// =========================
 // MESSAGE EVENT
 // =========================
 client.on("messageCreate", async (message) => {
@@ -90,7 +114,20 @@ client.on("messageCreate", async (message) => {
 
         await member.roles.add(muted).catch(() => {});
 
-        logRaid?.send(`🚨 Anti-spam: ${message.author.tag} mute 5 min`).catch(() => {});
+        const logRaidCh = message.guild.channels.cache.get(LOG_RAID) as TextChannel | undefined;
+        logRaidCh?.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xed4245)
+              .setTitle("🚨 Anti-spam déclenché")
+              .addFields(
+                { name: "Membre", value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
+                { name: "Salon", value: `<#${message.channel.id}>`, inline: true },
+                { name: "Durée mute", value: "5 minutes", inline: true },
+              )
+              .setTimestamp(),
+          ],
+        }).catch(() => {});
 
         setTimeout(() => {
           member.roles.remove(muted!).catch(() => {});
@@ -282,7 +319,11 @@ client.on("messageCreate", async (message) => {
     const count = (warns.get(user.id) ?? 0) + 1;
     warns.set(user.id, count);
     message.channel.send(`⚠️ Warn ${user.tag} (${count})`).catch(() => {});
-    logMod?.send(`${user.tag} warn (${count})`).catch(() => {});
+    modLog(message.guild, 0xfee75c, "⚠️ Warn", [
+      { name: "Membre", value: `<@${user.id}> (${user.tag})`, inline: true },
+      { name: "Salon", value: `<#${message.channel.id}>`, inline: true },
+      { name: "Total warns", value: `${count}`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -291,6 +332,9 @@ client.on("messageCreate", async (message) => {
     if (!user) return;
     warns.set(user.id, 0);
     message.channel.send(`✅ Warns réinitialisés pour ${user.tag}`).catch(() => {});
+    modLog(message.guild, 0x57f287, "✅ Unwarn", [
+      { name: "Membre", value: `<@${user.id}> (${user.tag})`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -308,6 +352,10 @@ client.on("messageCreate", async (message) => {
     }
     await user.roles.add(role).catch(() => {});
     message.channel.send(`🔇 ${user.user.tag} a été mute.`).catch(() => {});
+    modLog(message.guild, 0xed4245, "🔇 Mute", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+      { name: "Salon", value: `<#${message.channel.id}>`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -317,6 +365,9 @@ client.on("messageCreate", async (message) => {
     const role = message.guild.roles.cache.find((r) => r.name === MUTED_ROLE_NAME);
     if (role) await user.roles.remove(role).catch(() => {});
     message.channel.send(`🔊 ${user.user.tag} a été unmute.`).catch(() => {});
+    modLog(message.guild, 0x57f287, "🔊 Unmute", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -326,8 +377,13 @@ client.on("messageCreate", async (message) => {
   if (cmd === "ban") {
     const user = message.mentions.members?.first();
     if (!user) return;
-    await user.ban().catch(() => {});
+    const reason = args.slice(1).join(" ") || "Aucune raison";
+    await user.ban({ reason }).catch(() => {});
     message.channel.send(`🔨 ${user.user.tag} a été banni.`).catch(() => {});
+    modLog(message.guild, 0xed4245, "🔨 Ban", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+      { name: "Raison", value: reason, inline: true },
+    ], message.author);
     return;
   }
 
@@ -336,6 +392,9 @@ client.on("messageCreate", async (message) => {
     if (!id) return;
     await message.guild.members.unban(id).catch(() => {});
     message.channel.send(`✅ <@${id}> a été débanni.`).catch(() => {});
+    modLog(message.guild, 0x57f287, "✅ Unban", [
+      { name: "Membre", value: `<@${id}>`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -348,6 +407,10 @@ client.on("messageCreate", async (message) => {
     if (!user || !role) return;
     await user.roles.add(role).catch(() => {});
     message.channel.send(`✅ Rôle ${role.name} ajouté à ${user.user.tag}.`).catch(() => {});
+    modLog(message.guild, 0x5dade2, "🎭 Rôle ajouté", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+      { name: "Rôle", value: `<@&${role.id}> (${role.name})`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -357,6 +420,10 @@ client.on("messageCreate", async (message) => {
     if (!user || !role) return;
     await user.roles.remove(role).catch(() => {});
     message.channel.send(`✅ Rôle ${role.name} retiré de ${user.user.tag}.`).catch(() => {});
+    modLog(message.guild, 0x5dade2, "🎭 Rôle retiré", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+      { name: "Rôle", value: `<@&${role.id}> (${role.name})`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -403,6 +470,11 @@ client.on("messageCreate", async (message) => {
           : `🔒 Serveur en lockdown — seul le staff peut parler.`
       )
       .catch(() => {});
+    modLog(message.guild, isOff ? 0x57f287 : 0xed4245,
+      isOff ? "🔓 Lockdown levé" : "🔒 Lockdown activé",
+      [{ name: "Serveur", value: message.guild.name, inline: true }],
+      message.author
+    );
     return;
   }
 
@@ -426,6 +498,10 @@ client.on("messageCreate", async (message) => {
         })
     );
     message.channel.send("🔓 Serveur déverrouillé.").catch(() => {});
+    modLog(message.guild, 0x57f287, "🔓 Lockdown levé",
+      [{ name: "Serveur", value: message.guild.name, inline: true }],
+      message.author
+    );
     return;
   }
 
@@ -529,10 +605,11 @@ client.on("messageCreate", async (message) => {
       | TextChannel
       | undefined;
     jailChannel
-      ?.send(
-        `🔒 ${user} tu as été mis en jail.\nÉcris **LEGIT** pour sortir.`
-      )
+      ?.send(`🔒 ${user} tu as été mis en jail.\nÉcris **LEGIT** pour sortir.`)
       .catch(() => {});
+    modLog(message.guild, 0xed4245, "🔒 Jail", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+    ], message.author);
     return;
   }
 
@@ -545,6 +622,9 @@ client.on("messageCreate", async (message) => {
     else await user.roles.remove(jailRoleId).catch(() => {});
 
     message.channel.send(`✅ ${user.user.tag} sorti de jail.`).catch(() => {});
+    modLog(message.guild, 0x57f287, "🔓 Unjail", [
+      { name: "Membre", value: `<@${user.id}> (${user.user.tag})`, inline: true },
+    ], message.author);
     return;
   }
 });
