@@ -117,6 +117,32 @@ client.on("messageCreate", async (message) => {
   }
 
   // =========================
+  // AUTO UNJAIL SI "LEGIT"
+  // =========================
+  if (
+    message.channel.id === jailChannelId &&
+    message.content.trim().toUpperCase() === "LEGIT" &&
+    member.roles.cache.has(jailRoleId)
+  ) {
+    const roles = jailBackup.get(message.author.id);
+    if (roles) await member.roles.set(roles).catch(() => {});
+    else await member.roles.remove(jailRoleId).catch(() => {});
+    jailBackup.delete(message.author.id);
+
+    const jailChannel = message.channel as TextChannel;
+    jailChannel
+      .send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x57f287)
+            .setDescription(`✅ ${message.author} a écrit **LEGIT** — sorti de jail.`),
+        ],
+      })
+      .catch(() => {});
+    return;
+  }
+
+  // =========================
   // MENTION → AFFICHE LE PREFIX
   // =========================
   const isMention =
@@ -485,7 +511,11 @@ client.on("messageCreate", async (message) => {
     const jailChannel = message.guild.channels.cache.get(jailChannelId) as
       | TextChannel
       | undefined;
-    jailChannel?.send(`🔒 ${user} réponds: legit`).catch(() => {});
+    jailChannel
+      ?.send(
+        `🔒 ${user} tu as été mis en jail.\nÉcris **LEGIT** pour sortir.`
+      )
+      .catch(() => {});
     return;
   }
 
