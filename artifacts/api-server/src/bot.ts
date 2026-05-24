@@ -1,20 +1,38 @@
 import {
   Client,
   GatewayIntentBits,
-  PermissionFlagsBits,
+  PermissionsBitField,
   ChannelType,
-  EmbedBuilder,
-  Collection,
   type TextChannel,
   type GuildMember,
+  type Role,
 } from "discord.js";
 import { logger } from "./lib/logger";
 
-const STAFF_ROLE_ID = "1507070149767860415";
+// =========================
+// CONFIG
+// =========================
 const PREFIX = "+";
 
-const afkUsers = new Collection<string, { reason: string; since: number }>();
+const LOG_MOD = "1507070382312526006";
+const LOG_RAID = "1508077887436226741";
+const STAFF_ROLE_ID = "1507070149767860415";
 
+const jailRoleId = "1507394053572919469";
+const jailChannelId = "1507394055540047992";
+const MUTED_ROLE_NAME = "Muted";
+
+// =========================
+// SYSTEMS
+// =========================
+const warns = new Map<string, number>();
+const afk = new Map<string, boolean>();
+const jailBackup = new Map<string, string[]>();
+const spam = new Map<string, { count: number; time: number }>();
+
+// =========================
+// CLIENT
+// =========================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -25,127 +43,247 @@ const client = new Client({
   ],
 });
 
+// =========================
+// READY
+// =========================
 client.once("clientReady", () => {
   logger.info({ tag: client.user?.tag }, "Bot Discord connecté");
 });
 
+// =========================
+// MESSAGE EVENT
+// =========================
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.guild) return;
+  if (!message.guild || message.author.bot) return;
 
   const member = message.member as GuildMember;
+  const logMod = message.guild.channels.cache.get(LOG_MOD) as TextChannel | undefined;
+  const logRaid = message.guild.channels.cache.get(LOG_RAID) as TextChannel | undefined;
 
-  if (afkUsers.has(message.author.id)) {
-    afkUsers.delete(message.author.id);
-    const embed = new EmbedBuilder()
-      .setColor(0x57f287)
-      .setDescription(`✅ Bienvenue de retour **${message.author.username}** ! Ton statut AFK a été retiré.`);
-    message.reply({ embeds: [embed] }).catch(() => {});
-  }
+  // =========================
+  // 🛡 ANTI SPAM
+  // =========================
+  const now = Date.now();
 
-  const mentioned = message.mentions.users;
-  for (const [userId] of mentioned) {
-    if (afkUsers.has(userId)) {
-      const afkData = afkUsers.get(userId)!;
-      const since = Math.floor((Date.now() - afkData.since) / 60000);
-      const embed = new EmbedBuilder()
-        .setColor(0xfee75c)
-        .setDescription(`💤 **${message.guild.members.cache.get(userId)?.user.username ?? "Ce membre"}** est AFK depuis ${since} min — *${afkData.reason}*`);
-      message.reply({ embeds: [embed] }).catch(() => {});
+  if (!spam.has(message.author.id)) {
+    spam.set(message.author.id, { count: 1, time: now });
+  } else {
+    const data = spam.get(message.author.id)!;
+
+    if (now - data.time < 4000) {
+      data.count++;
+
+      if (data.count >= 6) {
+        await message.delete().catch(() => {});
+
+        let muted: Role | undefined = message.guild.roles.cache.find(
+          (r) => r.name === MUTED_ROLE_NAME
+        );
+
+        if (!muted) {
+          muted = await message.guild.roles.create({
+            name: MUTED_ROLE_NAME,
+            permissions: [],
+          });
+        }
+
+        await member.roles.add(muted).catch(() => {});
+
+        logRaid?.send(`🚨 Anti-spam: ${message.author.tag} mute 5 min`).catch(() => {});
+
+        setTimeout(() => {
+          member.roles.remove(muted!).catch(() => {});
+        }, 300000);
+
+        spam.delete(message.author.id);
+      }
+    } else {
+      spam.set(message.author.id, { count: 1, time: now });
     }
   }
 
+  // =========================
+  // AFK RETURN
+  // =========================
+  if (afk.has(message.author.id)) {
+    afk.delete(message.author.id);
+    message.reply("👋 AFK retiré.").catch(() => {});
+  }
+
+  const mentioned = message.mentions.users.first();
+  if (mentioned && afk.has(mentioned.id)) {
+    message.reply(`💤 ${mentioned.username} est AFK`).catch(() => {});
+  }
+
+  // =========================
+  // PREFIX CHECK
+  // =========================
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command = args.shift()?.toLowerCase();
+  const cmd = args.shift()?.toLowerCase();
+  if (!cmd) return;
 
-  if (!command) return;
+  // =========================
+  // HELP
+  // =========================
+  if (cmd === "help") {
+    return void message.channel.send(`
+📌 **COMMANDES**
 
-  switch (command) {
+🔨 **Modération:**
+\`+warn\` \`+unwarn\` \`+mute\` \`+unmute\` \`+jail\` \`+unjail\` \`+ban\` \`+unban\`
+\`+addrole\` \`+removerole\` \`+lockdown\` \`+lockdown off\`
 
-    case "clear": {
-      if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-        return void message.reply("❌ Tu n'as pas la permission `Gérer les messages`.");
-      }
-      const amount = parseInt(args[0] ?? "");
-      if (isNaN(amount) || amount < 1 || amount > 100) {
-        return void message.reply("❌ Donne un nombre entre 1 et 100. Ex: `+clear 10`");
-      }
-      const channel = message.channel as TextChannel;
-      await message.delete().catch(() => {});
-      const deleted = await channel.bulkDelete(amount, true).catch(() => null);
-      const count = deleted?.size ?? 0;
-      const confirm = await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x5865f2)
-            .setDescription(`🗑️ **${count}** message(s) supprimé(s).`)
-        ]
-      });
-      setTimeout(() => confirm.delete().catch(() => {}), 3000);
-      break;
+🧰 **Utilitaires:**
+\`+ping\` \`+afk\` \`+clears\` \`+dm\`
+
+🛡 **Auto:** Anti-spam / Anti-raid
+    `);
+  }
+
+  // =========================
+  // PING
+  // =========================
+  if (cmd === "ping") {
+    return void message.reply("🏓 Pong");
+  }
+
+  // =========================
+  // AFK
+  // =========================
+  if (cmd === "afk") {
+    afk.set(message.author.id, true);
+    return void message.reply("💤 AFK activé");
+  }
+
+  // =========================
+  // CLEAR
+  // =========================
+  if (cmd === "clears") {
+    if (!member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
+    const amount = parseInt(args[0] ?? "");
+    if (!amount || amount < 1 || amount > 100) return;
+    await message.delete().catch(() => {});
+    await (message.channel as TextChannel).bulkDelete(amount, true).catch(() => {});
+    return;
+  }
+
+  // =========================
+  // DM USER
+  // =========================
+  if (cmd === "dm") {
+    const user = message.mentions.users.first();
+    if (!user) return;
+    const msg = args.slice(1).join(" ");
+    if (!msg) return;
+    user.send(msg).catch(() => {});
+    return;
+  }
+
+  // =========================
+  // WARN / UNWARN
+  // =========================
+  if (cmd === "warn") {
+    const user = message.mentions.users.first();
+    if (!user) return;
+    const count = (warns.get(user.id) ?? 0) + 1;
+    warns.set(user.id, count);
+    message.channel.send(`⚠️ Warn ${user.tag} (${count})`).catch(() => {});
+    logMod?.send(`${user.tag} warn (${count})`).catch(() => {});
+    return;
+  }
+
+  if (cmd === "unwarn") {
+    const user = message.mentions.users.first();
+    if (!user) return;
+    warns.set(user.id, 0);
+    message.channel.send(`✅ Warns réinitialisés pour ${user.tag}`).catch(() => {});
+    return;
+  }
+
+  // =========================
+  // MUTE / UNMUTE
+  // =========================
+  if (cmd === "mute") {
+    const user = message.mentions.members?.first();
+    if (!user) return;
+    let role: Role | undefined = message.guild.roles.cache.find(
+      (r) => r.name === MUTED_ROLE_NAME
+    );
+    if (!role) {
+      role = await message.guild.roles.create({ name: MUTED_ROLE_NAME, permissions: [] });
     }
+    await user.roles.add(role).catch(() => {});
+    message.channel.send(`🔇 ${user.user.tag} a été mute.`).catch(() => {});
+    return;
+  }
 
-    case "afk": {
-      const reason = args.join(" ") || "Pas de raison";
-      afkUsers.set(message.author.id, { reason, since: Date.now() });
-      const embed = new EmbedBuilder()
-        .setColor(0xfee75c)
-        .setDescription(`💤 **${message.author.username}** est maintenant AFK — *${reason}*`);
-      await message.reply({ embeds: [embed] }).catch(() => {});
-      break;
-    }
+  if (cmd === "unmute") {
+    const user = message.mentions.members?.first();
+    if (!user) return;
+    const role = message.guild.roles.cache.find((r) => r.name === MUTED_ROLE_NAME);
+    if (role) await user.roles.remove(role).catch(() => {});
+    message.channel.send(`🔊 ${user.user.tag} a été unmute.`).catch(() => {});
+    return;
+  }
 
-    case "dm": {
-      if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-        return void message.reply("❌ Tu n'as pas la permission `Gérer les messages`.");
-      }
-      const target = message.mentions.members?.first();
-      if (!target) {
-        return void message.reply("❌ Mentionne un membre. Ex: `+dm @Membre bonjour`");
-      }
-      const dmContent = args.slice(1).join(" ");
-      if (!dmContent) {
-        return void message.reply("❌ Écris un message. Ex: `+dm @Membre bonjour`");
-      }
-      const dmEmbed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`📩 Message de ${message.guild.name}`)
-        .setDescription(dmContent)
-        .setFooter({ text: `Envoyé par ${message.author.tag}` });
-      try {
-        await target.send({ embeds: [dmEmbed] });
-        await message.reply({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0x57f287)
-              .setDescription(`✅ DM envoyé à **${target.user.username}**.`)
-          ]
-        });
-      } catch {
-        await message.reply("❌ Impossible d'envoyer un DM à ce membre (DMs fermés).");
-      }
-      break;
-    }
+  // =========================
+  // BAN / UNBAN
+  // =========================
+  if (cmd === "ban") {
+    const user = message.mentions.members?.first();
+    if (!user) return;
+    await user.ban().catch(() => {});
+    message.channel.send(`🔨 ${user.user.tag} a été banni.`).catch(() => {});
+    return;
+  }
 
-    case "lockdown": {
-      if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        return void message.reply("❌ Tu n'as pas la permission `Gérer les salons`.");
-      }
+  if (cmd === "unban") {
+    const id = args[0];
+    if (!id) return;
+    await message.guild.members.unban(id).catch(() => {});
+    message.channel.send(`✅ <@${id}> a été débanni.`).catch(() => {});
+    return;
+  }
 
-      const isOff = args[0]?.toLowerCase() === "off";
-      const guild = message.guild;
-      const everyoneRole = guild.roles.everyone;
+  // =========================
+  // ADDROLE / REMOVEROLE
+  // =========================
+  if (cmd === "addrole") {
+    const user = message.mentions.members?.first();
+    const role = message.mentions.roles.first();
+    if (!user || !role) return;
+    await user.roles.add(role).catch(() => {});
+    message.channel.send(`✅ Rôle ${role.name} ajouté à ${user.user.tag}.`).catch(() => {});
+    return;
+  }
 
-      const textChannels = guild.channels.cache.filter(
-        (ch) =>
-          ch.type === ChannelType.GuildText ||
-          ch.type === ChannelType.GuildAnnouncement
-      );
+  if (cmd === "removerole") {
+    const user = message.mentions.members?.first();
+    const role = message.mentions.roles.first();
+    if (!user || !role) return;
+    await user.roles.remove(role).catch(() => {});
+    message.channel.send(`✅ Rôle ${role.name} retiré de ${user.user.tag}.`).catch(() => {});
+    return;
+  }
 
-      let success = 0;
-      const promises = textChannels.map(async (ch) => {
+  // =========================
+  // LOCKDOWN / UNLOCK
+  // =========================
+  if (cmd === "lockdown") {
+    const isOff = args[0]?.toLowerCase() === "off";
+    const everyoneRole = message.guild.roles.everyone;
+
+    const textChannels = message.guild.channels.cache.filter(
+      (ch) =>
+        ch.type === ChannelType.GuildText ||
+        ch.type === ChannelType.GuildAnnouncement
+    );
+
+    // FIX: utilise Promise.all + await — le forEach original n'attendait pas les permissions
+    await Promise.all(
+      textChannels.map(async (ch) => {
         const channel = ch as TextChannel;
         try {
           if (isOff) {
@@ -160,39 +298,85 @@ client.on("messageCreate", async (message) => {
               SendMessages: true,
             });
           }
-          success++;
         } catch {
+          // salon ignoré si permissions insuffisantes
         }
-      });
+      })
+    );
 
-      await Promise.all(promises);
+    message.channel
+      .send(
+        isOff
+          ? "🔓 Serveur déverrouillé — tout le monde peut parler."
+          : `🔒 Serveur en lockdown — seul le staff peut parler.`
+      )
+      .catch(() => {});
+    return;
+  }
 
-      const embed = new EmbedBuilder()
-        .setColor(isOff ? 0x57f287 : 0xed4245)
-        .setTitle(isOff ? "🔓 Serveur déverrouillé" : "🔒 Serveur en lockdown")
-        .setDescription(
-          isOff
-            ? `Tous les salons ont été déverrouillés. (${success} salons)`
-            : `Tous les salons sont verrouillés. Seul le staff peut parler. (${success} salons)`
+  // Alias +unlock = +lockdown off
+  if (cmd === "unlock") {
+    const everyoneRole = message.guild.roles.everyone;
+    await Promise.all(
+      message.guild.channels.cache
+        .filter(
+          (ch) =>
+            ch.type === ChannelType.GuildText ||
+            ch.type === ChannelType.GuildAnnouncement
         )
-        .setTimestamp();
+        .map(async (ch) => {
+          try {
+            await (ch as TextChannel).permissionOverwrites.edit(everyoneRole, {
+              SendMessages: null,
+            });
+          } catch {
+          }
+        })
+    );
+    message.channel.send("🔓 Serveur déverrouillé.").catch(() => {});
+    return;
+  }
 
-      await message.reply({ embeds: [embed] });
-      break;
-    }
+  // =========================
+  // JAIL / UNJAIL
+  // =========================
+  if (cmd === "jail") {
+    const user = message.mentions.members?.first();
+    if (!user) return;
 
-    default:
-      break;
+    jailBackup.set(user.id, user.roles.cache.map((r) => r.id));
+    await user.roles.set([jailRoleId]).catch(() => {});
+
+    const jailChannel = message.guild.channels.cache.get(jailChannelId) as
+      | TextChannel
+      | undefined;
+    jailChannel?.send(`🔒 ${user} réponds: legit`).catch(() => {});
+    return;
+  }
+
+  if (cmd === "unjail") {
+    const user = message.mentions.members?.first();
+    if (!user) return;
+
+    const roles = jailBackup.get(user.id);
+    if (roles) await user.roles.set(roles).catch(() => {});
+    else await user.roles.remove(jailRoleId).catch(() => {});
+
+    message.channel.send(`✅ ${user.user.tag} sorti de jail.`).catch(() => {});
+    return;
   }
 });
 
+// =========================
+// EXPORT
+// =========================
 export function startBot(): void {
   const token = process.env["DISCORD_TOKEN"];
   if (!token) {
     logger.error("DISCORD_TOKEN manquant — bot non démarré");
     return;
   }
-  client.login(token).catch((err) => {
+  client.login(token).catch((err: unknown) => {
     logger.error({ err }, "Échec de connexion du bot Discord");
   });
 }
