@@ -128,18 +128,27 @@ client.on("messageCreate", async (message) => {
   // HELP
   // =========================
   if (cmd === "help") {
-    return void message.channel.send(`
-📌 **COMMANDES**
-
-🔨 **Modération:**
-\`+warn\` \`+unwarn\` \`+mute\` \`+unmute\` \`+jail\` \`+unjail\` \`+ban\` \`+unban\`
-\`+addrole\` \`+removerole\` \`+lockdown\` \`+lockdown off\`
-
-🧰 **Utilitaires:**
-\`+ping\` \`+afk\` \`+clears\` \`+dm\`
-
-🛡 **Auto:** Anti-spam / Anti-raid
-    `);
+    const helpEmbed = new EmbedBuilder()
+      .setColor(0x5dade2)
+      .setTitle("📌 Commandes du bot")
+      .addFields(
+        {
+          name: "🔨 Modération",
+          value:
+            "`+warn` `+unwarn` `+mute` `+unmute` `+jail` `+unjail`\n`+ban` `+unban` `+addrole` `+removerole`\n`+lockdown` `+lockdown off` `+unlock`",
+        },
+        {
+          name: "🧰 Utilitaires",
+          value: "`+ping` `+afk` `+clears <nombre>` `+dm @membre message`",
+        },
+        {
+          name: "🛡 Automatique",
+          value: "Anti-spam • Anti-raid",
+        }
+      )
+      .setFooter({ text: `Demandé par ${message.author.tag}` })
+      .setTimestamp();
+    return void message.channel.send({ embeds: [helpEmbed] });
   }
 
   // =========================
