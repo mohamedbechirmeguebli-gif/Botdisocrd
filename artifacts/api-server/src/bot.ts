@@ -139,7 +139,8 @@ client.on("messageCreate", async (message) => {
         },
         {
           name: "🧰 Utilitaires",
-          value: "`+ping` `+afk` `+clears <nombre>` `+dm @membre message`",
+          value:
+            "`+ping` `+afk` `+clears <nombre>` `+dm @membre message`\n`+userinfo [@membre]` `+serverinfo`",
         },
         {
           name: "🛡 Automatique",
@@ -388,6 +389,48 @@ client.on("messageCreate", async (message) => {
       .setTimestamp();
 
     return void message.channel.send({ embeds: [userinfoEmbed] });
+  }
+
+  // =========================
+  // SERVERINFO
+  // =========================
+  if (cmd === "serverinfo") {
+    const guild = message.guild;
+    await guild.fetch().catch(() => {});
+
+    const owner = await guild.fetchOwner().catch(() => null);
+    const createdAt = `<t:${Math.floor(guild.createdAt.getTime() / 1000)}:D>`;
+    const totalMembers = guild.memberCount;
+    const bots = guild.members.cache.filter((m) => m.user.bot).size;
+    const humans = totalMembers - bots;
+    const textChannels = guild.channels.cache.filter(
+      (c) => c.type === ChannelType.GuildText
+    ).size;
+    const voiceChannels = guild.channels.cache.filter(
+      (c) => c.type === ChannelType.GuildVoice
+    ).size;
+    const roles = guild.roles.cache.size - 1;
+    const boosts = guild.premiumSubscriptionCount ?? 0;
+    const boostLevel = guild.premiumTier;
+
+    const serverEmbed = new EmbedBuilder()
+      .setColor(0x5dade2)
+      .setTitle(`🌐 ${guild.name}`)
+      .setThumbnail(guild.iconURL({ size: 256 }) ?? null)
+      .addFields(
+        { name: "🪪 ID", value: `\`${guild.id}\``, inline: true },
+        { name: "👑 Propriétaire", value: owner ? `${owner.user.tag}` : "Inconnu", inline: true },
+        { name: "📅 Créé le", value: createdAt, inline: true },
+        { name: "👥 Membres", value: `${humans} humains • ${bots} bots`, inline: true },
+        { name: "💬 Salons texte", value: `${textChannels}`, inline: true },
+        { name: "🔊 Salons vocaux", value: `${voiceChannels}`, inline: true },
+        { name: "🎭 Rôles", value: `${roles}`, inline: true },
+        { name: "🚀 Boosts", value: `${boosts} boost(s) — Niveau ${boostLevel}`, inline: true },
+      )
+      .setFooter({ text: `Demandé par ${message.author.tag}` })
+      .setTimestamp();
+
+    return void message.channel.send({ embeds: [serverEmbed] });
   }
 
   // =========================
