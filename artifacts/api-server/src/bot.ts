@@ -27,7 +27,7 @@ const MUTED_ROLE_NAME = "Muted";
 // SYSTEMS
 // =========================
 const warns = new Map<string, number>();
-const afk = new Map<string, boolean>();
+const afk = new Map<string, { reason: string; originalNick: string | null }>();
 const jailBackup = new Map<string, string[]>();
 const spam = new Map<string, { count: number; time: number }>();
 
@@ -107,13 +107,16 @@ client.on("messageCreate", async (message) => {
   // AFK RETURN
   // =========================
   if (afk.has(message.author.id)) {
+    const data = afk.get(message.author.id)!;
     afk.delete(message.author.id);
+    await member.setNickname(data.originalNick).catch(() => {});
     message.reply("👋 AFK retiré.").catch(() => {});
   }
 
   const mentioned = message.mentions.users.first();
   if (mentioned && afk.has(mentioned.id)) {
-    message.reply(`💤 ${mentioned.username} est AFK`).catch(() => {});
+    const data = afk.get(mentioned.id)!;
+    message.reply(`💤 **${mentioned.username}** est AFK — *${data.reason}*`).catch(() => {});
   }
 
   // =========================
@@ -228,8 +231,11 @@ client.on("messageCreate", async (message) => {
   // AFK
   // =========================
   if (cmd === "afk") {
-    afk.set(message.author.id, true);
-    return void message.reply("💤 AFK activé");
+    const reason = args.join(" ") || "Pas de raison";
+    const originalNick = member.nickname ?? member.user.username;
+    afk.set(message.author.id, { reason, originalNick });
+    await member.setNickname(`[ AFK ] ${originalNick}`).catch(() => {});
+    return void message.reply(`💤 AFK activé — *${reason}*`);
   }
 
   // =========================
