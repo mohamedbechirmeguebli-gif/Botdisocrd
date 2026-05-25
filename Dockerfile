@@ -13,8 +13,8 @@ COPY lib/ ./lib/
 COPY scripts/ ./scripts/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
-# Replit and Railway both run linux-x64 — lockfile is fully compatible
-RUN pnpm install --frozen-lockfile
+# Allow all build scripts (needed for esbuild native binaries)
+RUN pnpm install --no-frozen-lockfile --config.dangerouslyAllowAllBuilds=true
 
 # Build the api-server
 RUN pnpm --filter @workspace/api-server run build
