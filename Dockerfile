@@ -8,17 +8,15 @@ WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
 
-# Copy shared lib packages
+# Copy all packages (needed for workspace resolution)
 COPY lib/ ./lib/
-
-# Copy the api-server artifact
+COPY scripts/ ./scripts/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
-# Install all workspace dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies (no frozen lockfile to avoid cross-OS issues)
+RUN pnpm install --no-frozen-lockfile
 
-# Build libs then the api-server
-RUN pnpm run typecheck:libs || true
+# Build the api-server
 RUN pnpm --filter @workspace/api-server run build
 
 EXPOSE 3000
