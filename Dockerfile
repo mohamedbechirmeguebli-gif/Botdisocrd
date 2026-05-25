@@ -13,8 +13,9 @@ COPY lib/ ./lib/
 COPY scripts/ ./scripts/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
-# Allow all build scripts (needed for esbuild native binaries)
-RUN pnpm install --no-frozen-lockfile --config.dangerouslyAllowAllBuilds=true
+# --shamefully-hoist ensures all packages land in root node_modules
+# so Node can find externalized packages (discord.js etc.) at runtime
+RUN pnpm install --no-frozen-lockfile --config.dangerouslyAllowAllBuilds=true --shamefully-hoist
 
 # Build the api-server
 RUN pnpm --filter @workspace/api-server run build
