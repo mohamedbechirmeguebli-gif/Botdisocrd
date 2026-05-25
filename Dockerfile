@@ -1,6 +1,6 @@
 FROM node:24-slim
 
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY lib/ ./lib/
 COPY scripts/ ./scripts/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
-# Install dependencies (no frozen lockfile to avoid cross-OS issues)
+# Install dependencies - pnpm v9 respects onlyBuiltDependencies from workspace config
 RUN pnpm install --no-frozen-lockfile
 
 # Build the api-server
