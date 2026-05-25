@@ -13,8 +13,8 @@ COPY lib/ ./lib/
 COPY scripts/ ./scripts/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
-# Install dependencies - pnpm v9 respects onlyBuiltDependencies from workspace config
-RUN pnpm install --no-frozen-lockfile
+# Replit and Railway both run linux-x64 — lockfile is fully compatible
+RUN pnpm install --frozen-lockfile
 
 # Build the api-server
 RUN pnpm --filter @workspace/api-server run build
